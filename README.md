@@ -17,7 +17,8 @@ Read the files in order:
 - `TON-ARB-RESEARCH_13.md`
 - `TON-ARB-RESEARCH_14.md`
 - `TON-ARB-RESEARCH_15.md`
-- `TON-ARB-RESEARCH_16.md` (this contribution)
+- `TON-ARB-RESEARCH_16.md`
+- `TON-ARB-RESEARCH_16.1.md` (this contribution)
 
 ## What the project has actually established
 
@@ -55,3 +56,4 @@ Architecture and quote-endpoint discovery: reasonably well-supported across mult
 Live profitability claims: **spread reproduced live and root-caused** as of contribution 14 (DeDust's TON/USD₮ pool priced ~14% above STON.fi/CoinGecko consensus) — but *why the spread persists* despite negligible price impact on either venue is still unexplained and is the top open question for the next contribution. Do not treat this as a green light to trade.
 Execution safety (custom executor contract): **enabled=true, confirmed via local TVM emulation** (contribution 14) — the contract is live and would process a trade if called, contrary to contribution 12's claim that it was disabled. Client-side sequential execution with client-enforced safety invariants remains the preferred approach for any initial prototype, now for the more precise reason that the executor is unaudited and owner-gated, not because it happens to be switched off.
 Tooling & Verification Pipeline: **Tooling suite implemented and verified offline** (contribution 16). Five TypeScript CLI tools built under `src/tools/` and verified with a 100% passing offline test suite in `test/index.ts`. Handed off to TON-ARB-RESEARCH_17 (online executor) to run live mainnet queries (DeDust pool tx history analysis, API latency benchmarking, dual-DEX matched simulation, safety gate validation) to answer open P0/P1 research questions.
+Model Architecture & Research Provenance: **Base model architecture disclosure mandated for all research files** (contribution 16.1). Established formal governance requiring each research contribution to explicitly document its underlying model architecture (Claude 3.7 Sonnet) and environment execution capabilities to audit hallucination profiles, ensure research provenance, and guarantee reproducibility in sequential multi-agent research logs.
