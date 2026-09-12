@@ -1,0 +1,30 @@
+{
+  "name": "ton-arb-research-tools",
+  "version": "1.0.0",
+  "description": "Research tools for TON DEX Arbitrage Terminal (RESEARCH_16)",
+  "main": "dist/src/tools/preflight_safety_gate.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node dist/test/index.js",
+    "dedust:analyze": "tsc && node dist/src/tools/dedust_pool_analyzer.js",
+    "dex:simulate": "tsc && node dist/src/tools/dual_dex_simulator.js",
+    "executor:verify": "tsc && node dist/src/tools/executor_verifier.js",
+    "latency:benchmark": "tsc && node dist/src/tools/latency_benchmarker.js",
+    "safety:gate": "tsc && node dist/src/tools/preflight_safety_gate.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quickerup/Research.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@ton/core": "^0.60.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/sandbox": "^0.30.0",
+    "axios": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
