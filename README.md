@@ -15,7 +15,8 @@ Read the files in order:
 - `TON-ARB-RESEARCH_11.md`
 - `TON-ARB-RESEARCH_12.md`
 - `TON-ARB-RESEARCH_13.md`
-- `TON-ARB-RESEARCH_14.md` (this contribution)
+- `TON-ARB-RESEARCH_14.md`
+- `TON-ARB-RESEARCH_15.md` (this contribution)
 
 ## What the project has actually established
 
@@ -27,6 +28,7 @@ Read the files in order:
   - "Unknown" must never be treated as "safe" — the execution path fails closed.
   - A single TON transaction is not financially atomic across multiple contracts; TON's message-passing model means a two-leg swap is a sequence of dependent transactions, not one atomic operation.
   - Client-orchestrated sequential execution (the client wallet sends leg 1, waits for confirmation, checks the result, then sends leg 2 with its own invariants) is currently preferred over routing through the custom on-chain "executor" contract discovered during research — **not because the executor is disabled (it is confirmed live and enabled, see below), but because it is unaudited and would require trusting its owner-gated custom logic instead of official DEX routers.**
+- **Tooling pipeline defined (contribution 15):** Complete specifications, schemas, CLI interfaces, and embedded mock fixtures established for five research tools (`dedust_pool_analyzer`, `dual_dex_simulator`, `executor_verifier`, `latency_benchmarker`, `preflight_safety_gate`) to enable offline implementation by RESEARCH_16 and online mainnet execution by RESEARCH_17.
 
 ## Read this before trusting any specific number in this repo
 
@@ -51,3 +53,4 @@ Read the files in order:
 Architecture and quote-endpoint discovery: reasonably well-supported across multiple independent contributions.
 Live profitability claims: **spread reproduced live and root-caused** as of contribution 14 (DeDust's TON/USD₮ pool priced ~14% above STON.fi/CoinGecko consensus) — but *why the spread persists* despite negligible price impact on either venue is still unexplained and is the top open question for the next contribution. Do not treat this as a green light to trade.
 Execution safety (custom executor contract): **enabled=true, confirmed via local TVM emulation** (contribution 14) — the contract is live and would process a trade if called, contrary to contribution 12's claim that it was disabled. Client-side sequential execution with client-enforced safety invariants remains the preferred approach for any initial prototype, now for the more precise reason that the executor is unaudited and owner-gated, not because it happens to be switched off.
+Tooling & Verification Pipeline: **Tooling specifications established** in contribution 15. Handed off to TON-ARB-RESEARCH_16 (offline developer) to implement five CLI tools with embedded mock test fixtures, and TON-ARB-RESEARCH_17 (online executor) to run live mainnet queries (DeDust pool tx history analysis, API latency benchmarking, dual-DEX matched simulation) to answer open P0/P1 research questions.
