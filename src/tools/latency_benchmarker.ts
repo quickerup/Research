@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { performance } from 'perf_hooks';
+import { getPtonMasterAddress } from './dedust_stonfi_live';
+
+const DEDUST_TON_USDT_POOL = 'EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r';
 
 export interface BenchmarkerOptions {
   samples: number;
@@ -69,12 +72,22 @@ export async function benchmarkLatency(options: BenchmarkerOptions): Promise<Ben
     stonfiLatencies.push(...MOCK_LATENCIES.stonfi.slice(0, options.samples));
     dedustLatencies.push(...MOCK_LATENCIES.dedust.slice(0, options.samples));
   } else {
-    const stonfiUrl = `https://api.ston.fi/v1/swap/simulate?offer_address=EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c&ask_address=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs&units=1000000000&slippage_tolerance=0.005`;
-    const dedustUrl = `https://api.dedust.io/v2/routing/plan`;
+    // Previously hardcoded STON.fi's own listing placeholder for native TON, which
+    // `/v1/swap/simulate` rejects outright (400 "invalid jetton address") — confirmed live
+    // 2026-09-13, RESEARCH_24. Every "STON.fi" sample this tool ever collected in live mode
+    // was therefore the fixed 1500ms failure penalty below, not real request latency.
+    const nativeTonStonfi = await getPtonMasterAddress();
+    const stonfiUrl = `https://api.ston.fi/v1/swap/simulate?offer_address=${nativeTonStonfi}&ask_address=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs&units=1000000000&slippage_tolerance=0.005`;
+    // Also previously hit `/v2/routing/plan`, DeDust's confirmed-stale legacy backend —
+    // switched to the same live v4 screener endpoint the (now-fixed) simulator uses, so
+    // this benchmarks the endpoint actually relied on for pricing, not a dead one.
+    const dedustUrl = `https://mainnet.api.dedust.io/v4/api/get_pools`;
     const dedustPayload = {
-      from: 'native',
-      to: 'jetton:0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe',
-      amount: '1000000000'
+      offset: 0,
+      limit: 1,
+      sort_by: 'volume_24h',
+      sort_direction: 'desc',
+      pool_addresses: [DEDUST_TON_USDT_POOL]
     };
     const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; TonArbTerminal/1.0)' };
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { fetchDedustPoolReserves, constantProductSwapOut, getPtonMasterAddress } from './dedust_stonfi_live';
 
 export interface SimulatorOptions {
   amounts: number[]; // In TON units e.g. [1, 10, 100]
@@ -52,9 +53,11 @@ export const MOCK_SIMULATOR_DATA: Record<number, { stonfiUsdt: number; dedustUsd
 };
 
 const ESTIMATED_GAS_TON = 0.25;
-const NATIVE_TON_STONFI = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
+// STON.fi's own listing placeholder for native TON is not a real address and is
+// rejected outright by /v1/swap/simulate — resolved live instead, see dedust_stonfi_live.ts.
 const USDT_JETTON_STONFI = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
 const USDT_JETTON_DEDUST = 'jetton:0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe';
+const DEDUST_TON_USDT_POOL = 'EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r';
 
 export async function queryStonfi(from: string, to: string, amountNanos: bigint, slippage: number): Promise<bigint> {
   const url = `https://api.ston.fi/v1/swap/simulate?offer_address=${from}&ask_address=${to}&units=${amountNanos.toString()}&slippage_tolerance=${slippage}`;
@@ -68,24 +71,15 @@ export async function queryStonfi(from: string, to: string, amountNanos: bigint,
   throw new Error(`Stonfi query failed: ${JSON.stringify(response.data)}`);
 }
 
-export async function queryDeDust(from: string, to: string, amountNanos: bigint): Promise<bigint> {
-  const url = `https://api.dedust.io/v2/routing/plan`;
-  const response = await axios.post(url, {
-    from,
-    to,
-    amount: amountNanos.toString()
-  }, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; TonArbTerminal/1.0)',
-      'Content-Type': 'application/json'
-    },
-    timeout: 5000
-  });
-  if (Array.isArray(response.data) && response.data[0] && response.data[0][0]) {
-    const plan = response.data[0][0];
-    return BigInt(plan.amountOut);
-  }
-  throw new Error(`DeDust query failed: ${JSON.stringify(response.data)}`);
+// `/v2/routing/plan` is built on the same stale legacy backend as `/v2/pools` (confirmed
+// live 2026-09-13, RESEARCH_24 — see dedust_stonfi_live.ts) and quotes off reserves that
+// were, at check time, 15.7% away from the pool's real on-chain price. Query the live
+// v4 screener's reserves directly and compute the swap output locally instead.
+export async function queryDeDust(from: string, _to: string, amountNanos: bigint): Promise<bigint> {
+  const { nativeReserve, jettonReserve, feeBps } = await fetchDedustPoolReserves(DEDUST_TON_USDT_POOL);
+  return from === 'native'
+    ? constantProductSwapOut(amountNanos, nativeReserve, jettonReserve, feeBps)
+    : constantProductSwapOut(amountNanos, jettonReserve, nativeReserve, feeBps);
 }
 
 export async function simulateDualDexArbitrage(options: SimulatorOptions): Promise<MatchedQuoteResult[]> {
@@ -111,17 +105,18 @@ export async function simulateDualDexArbitrage(options: SimulatorOptions): Promi
     } else {
       try {
         const amountNanos = BigInt(Math.round(amountTon * 1e9));
+        const nativeTonStonfi = await getPtonMasterAddress();
 
         // Path A Leg 1: DeDust TON -> USDT
         const leg1DeDustNanos = await queryDeDust('native', USDT_JETTON_DEDUST, amountNanos);
         leg1DeDustUsdt = Number(leg1DeDustNanos) / 1e6;
 
         // Path A Leg 2: STON.fi USDT -> TON
-        const leg2StonfiNanos = await queryStonfi(USDT_JETTON_STONFI, NATIVE_TON_STONFI, leg1DeDustNanos, options.slippage);
+        const leg2StonfiNanos = await queryStonfi(USDT_JETTON_STONFI, nativeTonStonfi, leg1DeDustNanos, options.slippage);
         leg2StonfiTon = Number(leg2StonfiNanos) / 1e9;
 
         // Path B Leg 1: STON.fi TON -> USDT
-        const leg1StonfiNanos = await queryStonfi(NATIVE_TON_STONFI, USDT_JETTON_STONFI, amountNanos, options.slippage);
+        const leg1StonfiNanos = await queryStonfi(nativeTonStonfi, USDT_JETTON_STONFI, amountNanos, options.slippage);
         leg1StonfiUsdt = Number(leg1StonfiNanos) / 1e6;
 
         // Path B Leg 2: DeDust USDT -> TON

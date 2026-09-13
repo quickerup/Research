@@ -7,6 +7,8 @@ exports.MOCK_LATENCIES = void 0;
 exports.benchmarkLatency = benchmarkLatency;
 const axios_1 = __importDefault(require("axios"));
 const perf_hooks_1 = require("perf_hooks");
+const dedust_stonfi_live_1 = require("./dedust_stonfi_live");
+const DEDUST_TON_USDT_POOL = 'EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r';
 exports.MOCK_LATENCIES = {
     stonfi: [250, 270, 310, 290, 410, 800, 260, 280, 300, 320, 275, 295, 315, 305, 285, 265, 330, 340, 290, 280, 270, 310, 325, 350, 290, 270, 280, 300, 310, 1120],
     dedust: [180, 210, 190, 220, 650, 200, 195, 205, 215, 225, 185, 195, 205, 210, 200, 190, 230, 240, 205, 195, 185, 215, 220, 250, 200, 190, 200, 210, 220, 850]
@@ -45,12 +47,22 @@ async function benchmarkLatency(options) {
         dedustLatencies.push(...exports.MOCK_LATENCIES.dedust.slice(0, options.samples));
     }
     else {
-        const stonfiUrl = `https://api.ston.fi/v1/swap/simulate?offer_address=EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c&ask_address=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs&units=1000000000&slippage_tolerance=0.005`;
-        const dedustUrl = `https://api.dedust.io/v2/routing/plan`;
+        // Previously hardcoded STON.fi's own listing placeholder for native TON, which
+        // `/v1/swap/simulate` rejects outright (400 "invalid jetton address") — confirmed live
+        // 2026-09-13, RESEARCH_24. Every "STON.fi" sample this tool ever collected in live mode
+        // was therefore the fixed 1500ms failure penalty below, not real request latency.
+        const nativeTonStonfi = await (0, dedust_stonfi_live_1.getPtonMasterAddress)();
+        const stonfiUrl = `https://api.ston.fi/v1/swap/simulate?offer_address=${nativeTonStonfi}&ask_address=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs&units=1000000000&slippage_tolerance=0.005`;
+        // Also previously hit `/v2/routing/plan`, DeDust's confirmed-stale legacy backend —
+        // switched to the same live v4 screener endpoint the (now-fixed) simulator uses, so
+        // this benchmarks the endpoint actually relied on for pricing, not a dead one.
+        const dedustUrl = `https://mainnet.api.dedust.io/v4/api/get_pools`;
         const dedustPayload = {
-            from: 'native',
-            to: 'jetton:0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe',
-            amount: '1000000000'
+            offset: 0,
+            limit: 1,
+            sort_by: 'volume_24h',
+            sort_direction: 'desc',
+            pool_addresses: [DEDUST_TON_USDT_POOL]
         };
         const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; TonArbTerminal/1.0)' };
         for (let i = 0; i < options.samples; i++) {
