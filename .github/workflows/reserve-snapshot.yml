@@ -1,0 +1,56 @@
+name: Reserve & Executor Snapshot
+
+# Answers TON-ARB-RESEARCH_17's P0 queue item #2: build a real reserve-drift
+# time series (every 15-30 min, over hours) instead of a single session
+# manually polling. Also snapshots the executor contract's getConfig() so
+# any future change to enabled/last_transaction_lt is caught automatically
+# instead of waiting for the next human-run session to notice.
+#
+# Read-only: only fetches public DeDust/Toncenter data and commits the
+# resulting JSONL rows back to the repo. Never signs or broadcasts anything.
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reserve-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r arb-research-api/requirements.txt
+
+      - name: Fetch live snapshot
+        env:
+          TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
+        run: python scripts/snapshot_reserves.py
+
+      - name: Commit snapshot
+        run: |
+          git config user.name "arb-research-bot"
+          git config user.email "arb-research-bot@users.noreply.github.com"
+          git add data/reserve_snapshots.jsonl data/executor_snapshots.jsonl
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "data: reserve/executor snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break
+            echo "Push attempt $attempt failed, retrying..."
+            sleep $((attempt * 5))
+          done

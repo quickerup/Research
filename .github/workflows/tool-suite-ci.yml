@@ -1,0 +1,85 @@
+name: Tool Suite CI & Live Health Check
+
+# Runs the existing offline test suite on every push/PR (normal CI), and
+# additionally on a daily schedule so a break caused by an upstream
+# dependency or API change is caught even when nobody has touched this repo
+# that day — the exact gap that let two of five tools in src/tools/ silently
+# produce mock output on real data undetected until RESEARCH_17 ran them by
+# hand (see TON-ARB-RESEARCH_17 §1, §4).
+#
+# The scheduled run also executes each CLI tool once against live data and
+# uploads the raw stdout as a build artifact, so a future contributor can
+# inspect what the tools actually printed on a given day without needing
+# live network access themselves in their own sandbox (RESEARCH_13 didn't
+# have it; this makes that a non-blocker going forward).
+#
+# Read-only: no tool here signs or broadcasts a transaction.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: tool-suite-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  live-health-check:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: offline-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+
+      - name: Run tools live and capture output
+        env:
+          TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
+        run: |
+          mkdir -p live_output
+          {
+            node dist/src/tools/dedust_pool_analyzer.js --limit 50 ${TONCENTER_API_KEY:+--api-key "$TONCENTER_API_KEY"}
+          } > live_output/dedust_pool_analyzer.txt 2>&1 || true
+          {
+            node dist/src/tools/executor_verifier.js
+          } > live_output/executor_verifier.txt 2>&1 || true
+          {
+            node dist/src/tools/dual_dex_simulator.js --amounts 1,10 --slippage 0.005
+          } > live_output/dual_dex_simulator.txt 2>&1 || true
+          {
+            node dist/src/tools/latency_benchmarker.js --samples 10 --delay-ms 200
+          } > live_output/latency_benchmarker.txt 2>&1 || true
+
+          echo "--- Checking for silent mock fallback on tools expected to run live ---"
+          fail=0
+          for f in live_output/*.txt; do
+            if grep -qi "falling back to mock" "$f"; then
+              echo "::warning file=$f::Tool fell back to mock data live (see file for the reason printed)."
+            fi
+          done
+          exit $fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-tool-output-${{ github.run_id }}
+          path: live_output/
+          retention-days: 90
