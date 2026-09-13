@@ -1,0 +1,71 @@
+name: arb-research-api Smoke Test
+
+# Starts arb-research-api/app.py and hits every route against live upstreams
+# on a schedule, so a break in this new API (a changed upstream shape, a
+# dependency bump, a routing bug) is caught automatically instead of
+# silently sitting broken until someone happens to call it — the same
+# "verify it actually works against real data, don't just trust it" lesson
+# this whole project has been re-learning contribution after contribution,
+# applied to the new component instead of just the old ones.
+#
+# Read-only: every request made here is a GET/read-only query against
+# public STON.fi/DeDust/Toncenter endpoints.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - "arb-research-api/**"
+      - ".github/workflows/api-smoke-test.yml"
+
+concurrency:
+  group: api-smoke-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r arb-research-api/requirements.txt
+
+      - name: Start API
+        working-directory: arb-research-api
+        env:
+          TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
+        run: |
+          nohup python app.py > /tmp/app.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8080/health && break
+            sleep 1
+          done
+
+      - name: Exercise every route against live data
+        run: |
+          set -e
+          check() {
+            echo "=== $1 ==="
+            code=$(curl -s -o /tmp/resp.json -w "%{http_code}" "$1")
+            cat /tmp/resp.json
+            echo
+            if [ "$code" != "200" ]; then
+              echo "FAILED: HTTP $code"
+              exit 1
+            fi
+            python3 -c "import json,sys; d=json.load(open('/tmp/resp.json')); sys.exit(0 if d.get('ok') else 1)"
+          }
+          check "http://127.0.0.1:8080/health"
+          check "http://127.0.0.1:8080/reserves/dedust"
+          check "http://127.0.0.1:8080/executor/status"
+          check "http://127.0.0.1:8080/pool/transactions?limit=5"
+          check "http://127.0.0.1:8080/quote/stonfi?offer_address=EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c&ask_address=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs&units=1000000000"
+          check "http://127.0.0.1:8080/spread?amount=1"
+
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/app.log || true
