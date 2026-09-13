@@ -9,24 +9,32 @@ exports.queryDeDust = queryDeDust;
 exports.simulateDualDexArbitrage = simulateDualDexArbitrage;
 const axios_1 = __importDefault(require("axios"));
 const dedust_stonfi_live_1 = require("./dedust_stonfi_live");
+// Recalibrated 2026-09-13 (RESEARCH_25) from a live, no-fallback run of this same
+// simulator (`node dist/src/tools/dual_dex_simulator.js --amounts 1,10,100`) against the
+// fixed v4/get_pools + /v1/swap/simulate paths. The previous values here were the
+// original RESEARCH_15/16-era numbers, which happened to encode the debunked ~14%
+// DeDust legacy-tier "spread" (dedustUsdt ~1.575-1.576 per TON) as the mock/fallback
+// baseline — see RESEARCH_24 §2 for how a transient timeout could silently resurface
+// that exact illusory number under a live-mode banner. These values instead reflect
+// the corrected ~1.345-1.347 consensus (RESEARCH_23 §0, RESEARCH_24 §0/§2).
 exports.MOCK_SIMULATOR_DATA = {
     1: {
-        stonfiUsdt: 1.377746,
-        dedustUsdt: 1.575724,
-        stonfiTonBack: 1.137119,
-        dedustTonBack: 0.872601
+        stonfiUsdt: 1.3471,
+        dedustUsdt: 1.3454,
+        stonfiTonBack: 0.996713,
+        dedustTonBack: 0.999280
     },
     10: {
-        stonfiUsdt: 13.777396,
-        dedustUsdt: 15.756539,
-        stonfiTonBack: 11.370624,
-        dedustTonBack: 8.725633
+        stonfiUsdt: 13.4711,
+        dedustUsdt: 13.4532,
+        stonfiTonBack: 9.966652,
+        dedustTonBack: 9.992318
     },
     100: {
-        stonfiUsdt: 137.767315,
-        dedustUsdt: 157.495174,
-        stonfiTonBack: 113.649135,
-        dedustTonBack: 87.218159
+        stonfiUsdt: 134.7042,
+        dedustUsdt: 134.4736,
+        stonfiTonBack: 99.618429,
+        dedustTonBack: 99.874939
     }
 };
 const ESTIMATED_GAS_TON = 0.25;

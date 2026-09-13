@@ -47,10 +47,14 @@ async function runAllTests() {
             mock: true
         });
         assert_1.default.strictEqual(results.length, 3, 'Should return 3 quote results');
-        // 10 TON check
+        // 10 TON check. Mock data was recalibrated in RESEARCH_25 from the debunked ~14%
+        // DeDust-legacy-tier spread to the corrected ~1.345-1.347 consensus (RESEARCH_23 §0,
+        // RESEARCH_24 §0/§2), so both paths now show small negative gross P&L (fee-driven
+        // noise between two near-parity venues), not a one-sided ~13.7% "opportunity."
         const res10 = results[1];
         assert_1.default.strictEqual(res10.amountTon, 10);
-        (0, assert_1.default)(res10.pathA.grossProfitTon > 1.0, 'Path A should show ~13.7% gross profit');
+        (0, assert_1.default)(Math.abs(res10.pathA.grossProfitTon) < 0.1, 'Path A gross P&L should be small (near-parity venues)');
+        (0, assert_1.default)(res10.pathA.grossProfitTon < 0, 'Path A should show negative profit');
         (0, assert_1.default)(res10.pathB.grossProfitTon < 0, 'Path B should show negative profit');
     });
     // Test 3: Executor Verifier Mock Mode & TVM Logic
