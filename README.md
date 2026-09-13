@@ -26,9 +26,10 @@ Start with `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` — it is a compression pass
 - `COMPRESSED/TON-ARB-RESEARCH_17.md`
 - `COMPRESSED/TON-ARB-RESEARCH_18.md`
 - `COMPRESSED/TON-ARB-RESEARCH_19.md`
-- `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` (second compression pass — **current single source of truth**, this contribution)
+- `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` (second compression pass)
+- `TON-ARB-RESEARCH_21.md` (**current — resolves the digest's §6 item 1 quote-vs-settlement gap and identifies its root cause; read this first**)
 
-The next new research contribution should be `TON-ARB-RESEARCH_21.md` — don't reuse `20`, since that's this compression pass — continuing from §6 of the compression digest.
+The next new research contribution should be `TON-ARB-RESEARCH_22.md`, continuing from §4 of `TON-ARB-RESEARCH_21.md`.
 
 ## What the project has actually established
 
@@ -48,6 +49,7 @@ The next new research contribution should be `TON-ARB-RESEARCH_21.md` — don't 
 - **Tooling Suite Bug Fixes & Live Verification (contribution 19):** Fixed `dedust_pool_analyzer.ts` classifier via `@ton/core` BOC opcode parsing (42/50 real swaps decoded, 0 false zeros); fixed `executor_verifier.ts` timeout (increased to 15s with `apiKey` support, live verified against Toncenter without mock fallback); fixed `dual_dex_simulator.ts` size header formatting.
 - **Read-only HTTP API added (contribution 18): `arb-research-api/`.** A Flask app (`app.py`, logic in `core.py`) wrapping the same live data sources (STON.fi, DeDust, Toncenter) the TypeScript tools use, so other tools and scheduled GitHub Actions can pull research data over HTTP.
 - **Scheduled automation added (contribution 18) & Live Reserve Snapshot Initialized (contribution 19):** `.github/workflows/` workflows configured (`reserve-snapshot.yml`, `tool-suite-ci.yml`, `api-smoke-test.yml`). `scripts/snapshot_reserves.py` executed live in RESEARCH_19, recording initial snapshot entries in `data/reserve_snapshots.jsonl` and `data/executor_snapshots.jsonl`.
+- **Quote-vs-settlement gap resolved, with root cause (contribution 21):** contribution 19's "no persistent spread" finding is now independently confirmed via a `@ton/sandbox` trace of a real swap sent to the DeDust pool's actual live bytecode (settles at $1.3758/TON) and the pool's own `get_reserves()`/`estimate_swap_out()` get-methods (agree exactly). **Root cause found:** DeDust's own `/v2/pools` and `/v2/routing/plan` REST endpoints serve a badly stale cached reserve number for this one pool — its own response embeds a self-reported `lt` ~13 trillion units behind the pool's real current LT. This project's own `arb-research-api`/snapshot automation was unknowingly reading that same stale source; fixed in contribution 21 to read the pool's own get-method instead. Also resolved: the executor's `last_transaction_id.lt` discrepancy (both prior values were correct, just from different points in time; the contract has now received one trivial 0.02 TON owner probe call, traced in sandbox — still no evidence it has ever dispatched to a DEX). GitHub Actions automation confirmed mechanically functional via a manual `workflow_dispatch` test, but the `schedule:` cron trigger had not fired organically as of this writing, and the `TONCENTER_API_KEY` repo secret was found unconfigured.
 
 ## Read this before trusting any specific number in this repo
 

@@ -67,8 +67,25 @@ def fetch_dedust_pools() -> list[dict[str, Any]]:
     return resp.json()
 
 
-def get_dedust_pool_reserves(pool_address: str = DEFAULT_DEDUST_POOL) -> dict[str, Any]:
-    """Reserves for one DeDust pool, found by address in the full pool list."""
+def get_dedust_pool_reserves_rest(pool_address: str = DEFAULT_DEDUST_POOL) -> dict[str, Any]:
+    """Reserves for one DeDust pool, as reported by DeDust's own /v2/pools REST listing.
+
+    TON_ARB_RESEARCH_21 (2026-09-13) found this REST source serves a badly
+    stale cached reserve number for DEFAULT_DEDUST_POOL specifically: the
+    response's own `"lt"` field for this pool (90455910000021) is ~13
+    trillion LT units behind the pool's real current LT (~1.031e14, live at
+    time of writing) -- confirmed by cross-checking against (a) the pool's
+    own `get_reserves()` get-method, (b) its `estimate_swap_out()`
+    get-method, and (c) a `@ton/sandbox` trace of a real swap message sent
+    to the pool's actual live code+data, all three of which agree with each
+    other (~$1.376-1.378/TON) and disagree with this REST endpoint's number
+    (~$1.574-1.579/TON) by the same ~14% previously misread across this
+    project as a persistent cross-DEX spread (RESEARCH_12/14/17). Kept here,
+    clearly labeled, for anyone who needs to compare the two sources -- do
+    not use this function's output as a trading-relevant price. Use
+    get_dedust_pool_reserves() instead, which reads the pool's own
+    get-method live.
+    """
     pools = fetch_dedust_pools()
     for pool in pools:
         if pool.get("address") == pool_address:
@@ -80,9 +97,44 @@ def get_dedust_pool_reserves(pool_address: str = DEFAULT_DEDUST_POOL) -> dict[st
                 "reserves_raw": reserves,
                 "trade_fee": pool.get("tradeFee"),
                 "total_supply": pool.get("totalSupply"),
+                "source": "REST /v2/pools (known stale for this pool -- see docstring)",
                 "fetched_at_unix": int(time.time()),
             }
     raise UpstreamError(f"Pool {pool_address} not found in live DeDust pool list")
+
+
+def get_dedust_pool_reserves(pool_address: str = DEFAULT_DEDUST_POOL) -> dict[str, Any]:
+    """Reserves for one DeDust pool, read live from its own get_reserves() get-method.
+
+    Deliberately does NOT use DeDust's /v2/pools or /v2/routing/plan REST
+    endpoints for this -- see get_dedust_pool_reserves_rest()'s docstring
+    for why those are unsafe for this pool. This on-chain read is the
+    authoritative source: it matches a real sandbox-executed trade against
+    the pool's live bytecode exactly (RESEARCH_21).
+    """
+    resp = requests.post(
+        "https://toncenter.com/api/v2/runGetMethod",
+        json={"address": pool_address, "method": "get_reserves", "stack": []},
+        headers={"Content-Type": "application/json", **_toncenter_headers()},
+        timeout=DEFAULT_TIMEOUT,
+    )
+    data = resp.json()
+    if not data.get("ok"):
+        raise UpstreamError(f"Toncenter runGetMethod(get_reserves) failed: {data!r}")
+    stack = data["result"]["stack"]
+    if len(stack) < 2:
+        raise UpstreamError(f"get_reserves() returned unexpected stack shape: {stack!r}")
+    reserve0 = int(stack[0][1], 16)
+    reserve1 = int(stack[1][1], 16)
+    return {
+        "pool_address": pool_address,
+        "reserves_raw": [str(reserve0), str(reserve1)],
+        "trade_fee": "0.1",  # confirmed live and stable since RESEARCH_14; get_trade_fee() exists on-chain if this ever needs to be dynamic
+        "source": "onchain get_reserves() get-method (live)",
+        "last_transaction_lt": data["result"]["last_transaction_id"]["lt"],
+        "block_seqno": data["result"]["block_id"]["seqno"],
+        "fetched_at_unix": int(time.time()),
+    }
 
 
 def query_dedust_quote(from_asset: str, to_asset: str, amount_nanos: int) -> int:
