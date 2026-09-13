@@ -12,21 +12,27 @@ Each file is a "contribution" from a separate research pass, written to read all
 
 ## How to read this repo
 
-Read the files in order:
+Start with `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` — it is a compression pass (not new research) that distills the entire chain below into one current-state reference. Read the archived originals in `COMPRESSED/` only when you need the full reasoning trail, raw artifacts, or a specific superseded claim:
 
 - `COMPRESSED/TON_ARB_RESEARCH_01.md` through `09.md`
-- `TON_ARB_RESEARCH_10_COMPRESSOION_01.md` (a compression/digest, not new research)
-- `TON-ARB-RESEARCH_11.md`
-- `TON-ARB-RESEARCH_12.md`
-- `TON-ARB-RESEARCH_13.md`
-- `TON-ARB-RESEARCH_14.md`
-- `TON-ARB-RESEARCH_15.md`
-- `TON-ARB-RESEARCH_16.md`
-- `TON-ARB-RESEARCH_16.1.md`
-- `TON-ARB-RESEARCH_17.md`
-- `TON-ARB-RESEARCH_18.md` (this contribution)
+- `COMPRESSED/TON_ARB_RESEARCH_10_COMPRESSOION_01.md` (first compression pass, now itself superseded/folded into `TON_ARB_RESEARCH_20_COMPRESSOION_02.md`)
+- `COMPRESSED/TON-ARB-RESEARCH_11.md`
+- `COMPRESSED/TON-ARB-RESEARCH_12.md`
+- `COMPRESSED/TON-ARB-RESEARCH_13.md`
+- `COMPRESSED/TON-ARB-RESEARCH_14.md`
+- `COMPRESSED/TON-ARB-RESEARCH_15.md`
+- `COMPRESSED/TON-ARB-RESEARCH_16.md`
+- `COMPRESSED/TON-ARB-RESEARCH_16.1.md`
+- `COMPRESSED/TON-ARB-RESEARCH_17.md`
+- `COMPRESSED/TON-ARB-RESEARCH_18.md`
+- `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` (second compression pass — **current single source of truth**, this contribution)
+
+The next new research contribution should be `TON-ARB-RESEARCH_19.md` (or `_21` if the project keeps compression passes on the same numbering track as research contributions — either is fine, just don't reuse `20`), continuing from §6 of the compression digest.
 
 ## What the project has actually established
+
+*(The sections below are preserved for a quick skim, but `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` is now the authoritative, more detailed version of this same material — including two items this compression pass surfaced that aren't reflected below yet: an unreconciled executor `last_transaction_id.lt` discrepancy between contributions 17 and 18, and the fact that contributions 11–18 are now archived under `COMPRESSED/`, not in the repo root.)*
+
 
 - **Goal:** discovery, validation, and cost calculation are automated; a human is the final authorization authority for every trade; a fresh re-validation happens immediately before execution.
 - **Quote sources identified:** STON.fi (`POST /v1/swap/simulate`) and DeDust (`POST /v2/routing/plan`) both expose REST endpoints that return simulated swap output, fees, and route data.
