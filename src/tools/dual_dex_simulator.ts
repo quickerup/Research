@@ -198,7 +198,7 @@ async function main() {
 
   for (const res of results) {
     console.log(`\n--- Size: ${res.amountTon} TON ---`);
-    console.log(`1 TON Quote: STON.fi = ${(res.stonfiQuoteUsdt / res.amountTon).toFixed(4)} USDT | DeDust = ${(res.dedustQuoteUsdt / res.amountTon).toFixed(4)} USDT`);
+    console.log(`${res.amountTon} TON Quote: STON.fi = ${(res.stonfiQuoteUsdt / res.amountTon).toFixed(4)} USDT | DeDust = ${(res.dedustQuoteUsdt / res.amountTon).toFixed(4)} USDT`);
     console.log(`Path A (${res.pathA.description}):`);
     console.log(`  Leg 1 (DeDust): ${res.pathA.leg1DeDustTonToUsdt.toFixed(4)} USDT`);
     console.log(`  Leg 2 (STON.fi): ${res.pathA.leg2StonfiUsdtToTon.toFixed(6)} TON`);

@@ -5,6 +5,7 @@ import axios from 'axios';
 export interface ExecutorVerifierOptions {
   address: string;
   mock: boolean;
+  apiKey?: string;
 }
 
 export interface VerificationResult {
@@ -67,7 +68,11 @@ export async function verifyExecutorContract(options: ExecutorVerifierOptions): 
   } else {
     try {
       const url = `https://toncenter.com/api/v2/getAddressInformation?address=${options.address}`;
-      const response = await axios.get(url, { timeout: 5000 });
+      const headers: Record<string, string> = {};
+      if (options.apiKey) {
+        headers['X-API-Key'] = options.apiKey;
+      }
+      const response = await axios.get(url, { headers, timeout: 15000 });
       if (response.data && response.data.ok && response.data.result.data) {
         bocBase64 = response.data.result.data;
       } else {
@@ -111,17 +116,19 @@ async function main() {
   const args = process.argv.slice(2);
   let address = 'EQBo5HJbBWZlOVuBpOPSiRNu18eHgq8XmoTbwdBlZpKflg3s';
   let mock = false;
+  let apiKey: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--address' && args[i + 1]) address = args[++i];
     if (args[i] === '--mock') mock = true;
+    if (args[i] === '--api-key' && args[i + 1]) apiKey = args[++i];
   }
 
   console.log(`=== TVM Contract State & Get-Method Verifier ===`);
   console.log(`Target Address: ${address}`);
   console.log(`Mode: ${mock ? 'MOCK' : 'LIVE (with mock fallback)'}`);
 
-  const res = await verifyExecutorContract({ address, mock });
+  const res = await verifyExecutorContract({ address, mock, apiKey });
 
   console.log(`\n--- Verification Output ---`);
   console.log(`Contract Enabled State: ${res.enabled ? 'ENABLED (true)' : 'DISABLED (false)'}`);
