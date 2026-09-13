@@ -27,9 +27,10 @@ Start with `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` — it is a compression pass
 - `COMPRESSED/TON-ARB-RESEARCH_18.md`
 - `COMPRESSED/TON-ARB-RESEARCH_19.md`
 - `TON_ARB_RESEARCH_20_COMPRESSOION_02.md` (second compression pass)
-- `TON-ARB-RESEARCH_21.md` (**current — resolves the digest's §6 item 1 quote-vs-settlement gap and identifies its root cause; read this first**)
+- `TON-ARB-RESEARCH_21.md` (resolves the digest's §6 item 1 quote-vs-settlement gap and identifies its root cause)
+- `TON-ARB-RESEARCH_22.md` (**current — independently verifies STON.fi's quote endpoint is clean, unlike DeDust; rechecks infra status; resolves the funded-research-wallet authorization; read this first**)
 
-The next new research contribution should be `TON-ARB-RESEARCH_22.md`, continuing from §4 of `TON-ARB-RESEARCH_21.md`.
+The next new research contribution should be `TON-ARB-RESEARCH_23.md`, continuing from §5 of `TON-ARB-RESEARCH_22.md`.
 
 ## What the project has actually established
 
@@ -50,6 +51,7 @@ The next new research contribution should be `TON-ARB-RESEARCH_22.md`, continuin
 - **Read-only HTTP API added (contribution 18): `arb-research-api/`.** A Flask app (`app.py`, logic in `core.py`) wrapping the same live data sources (STON.fi, DeDust, Toncenter) the TypeScript tools use, so other tools and scheduled GitHub Actions can pull research data over HTTP.
 - **Scheduled automation added (contribution 18) & Live Reserve Snapshot Initialized (contribution 19):** `.github/workflows/` workflows configured (`reserve-snapshot.yml`, `tool-suite-ci.yml`, `api-smoke-test.yml`). `scripts/snapshot_reserves.py` executed live in RESEARCH_19, recording initial snapshot entries in `data/reserve_snapshots.jsonl` and `data/executor_snapshots.jsonl`.
 - **Quote-vs-settlement gap resolved, with root cause (contribution 21):** contribution 19's "no persistent spread" finding is now independently confirmed via a `@ton/sandbox` trace of a real swap sent to the DeDust pool's actual live bytecode (settles at $1.3758/TON) and the pool's own `get_reserves()`/`estimate_swap_out()` get-methods (agree exactly). **Root cause found:** DeDust's own `/v2/pools` and `/v2/routing/plan` REST endpoints serve a badly stale cached reserve number for this one pool — its own response embeds a self-reported `lt` ~13 trillion units behind the pool's real current LT. This project's own `arb-research-api`/snapshot automation was unknowingly reading that same stale source; fixed in contribution 21 to read the pool's own get-method instead. Also resolved: the executor's `last_transaction_id.lt` discrepancy (both prior values were correct, just from different points in time; the contract has now received one trivial 0.02 TON owner probe call, traced in sandbox — still no evidence it has ever dispatched to a DEX). GitHub Actions automation confirmed mechanically functional via a manual `workflow_dispatch` test, but the `schedule:` cron trigger had not fired organically as of this writing, and the `TONCENTER_API_KEY` repo secret was found unconfigured.
+- **STON.fi's quote endpoint independently verified clean (contribution 22):** unlike DeDust's REST layer, STON.fi's `/v1/swap/simulate` was cross-checked directly against its own pool's `get_pool_data()` get-method (with token-wallet addresses decoded via `@ton/core` to confirm reserve ordering, not assumed) and agrees to within ~0.05% after accounting for its own stated fee. The pool's recent transactions are all under 4 minutes old, ruling out a stale-cache issue like DeDust's. **A dedicated, user-funded TON mainnet research wallet was also introduced this contribution** (`UQDVYfBHBVxW8YZC3AOYgbjAqVQiIj1p0mQRmMA9uB5_OXRn`, ~2.0 TON) for controlled empirical experiments where read-only/sandbox methods are insufficient; its authorization was confirmed directly by the project owner after an initial refusal (see contribution 22's process note). No transaction was sent this contribution — every open question was resolved more cheaply without it.
 
 ## Read this before trusting any specific number in this repo
 
