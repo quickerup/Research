@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MOCK_POOL_TRANSACTIONS = void 0;
 exports.analyzeDeDustPool = analyzeDeDustPool;
 const axios_1 = __importDefault(require("axios"));
+const core_1 = require("@ton/core");
 exports.MOCK_POOL_TRANSACTIONS = [
     {
         utime: 1726182000,
@@ -59,6 +60,8 @@ exports.MOCK_POOL_TRANSACTIONS = [
         ]
     }
 ];
+const TON_VAULT_ADDR = 'EQDa4VOnTYlLvDJ0gZjNYm5PXfSmmtL6Vs6A_CZEtXCNICq_';
+const USDT_VAULT_ADDR = 'EQAYqo4u7VF0fa4DPAebk4g9lBytj2VFny7pzXR0trjtXQaO';
 async function analyzeDeDustPool(options) {
     let rawTxs = [];
     if (options.mock) {
@@ -71,7 +74,7 @@ async function analyzeDeDustPool(options) {
             if (options.apiKey) {
                 headers['X-API-Key'] = options.apiKey;
             }
-            const response = await axios_1.default.get(url, { headers, timeout: 5000 });
+            const response = await axios_1.default.get(url, { headers, timeout: 15000 });
             if (response.data && response.data.ok) {
                 rawTxs = response.data.result;
             }
@@ -92,45 +95,132 @@ async function analyzeDeDustPool(options) {
     for (const tx of rawTxs) {
         const inMsg = tx.in_msg || {};
         const outMsgs = tx.out_msgs || [];
-        const inValue = BigInt(inMsg.value || '0');
-        let outValueSum = BigInt(0);
-        let usdtAmount = BigInt(0);
-        for (const out of outMsgs) {
-            const val = BigInt(out.value || '0');
-            outValueSum += val;
-            // Heuristic for USDT jetton units vs TON nanos
-            if (out.message && out.message.toLowerCase().includes('usdt')) {
-                usdtAmount += val;
-            }
-        }
         let tradeType = 'UNKNOWN';
         let tonAmount = BigInt(0);
         let usdtUnits = BigInt(0);
-        if (inMsg.message && inMsg.message.toLowerCase().includes('ton to usdt')) {
-            tradeType = 'TON->USDT';
-            tonAmount = inValue;
-            usdtUnits = usdtAmount > 0n ? usdtAmount : BigInt(outMsgs[0]?.value || '0');
-            tonToUsdtCount++;
+        let decodedViaOpcode = false;
+        // Try cell/opcode parsing for real DeDust transactions
+        if (inMsg.msg_data && inMsg.msg_data.body) {
+            try {
+                const cell = core_1.Cell.fromBase64(inMsg.msg_data.body);
+                const s = cell.beginParse();
+                if (s.remainingBits >= 32) {
+                    const op = s.loadUint(32);
+                    if (op === 0x61ee542d) { // DeDust Pool.SWAP
+                        const queryId = s.loadUintBig(64);
+                        const amount0 = s.loadCoins();
+                        let srcAddressStr = '';
+                        try {
+                            srcAddressStr = core_1.Address.parse(inMsg.source).toString();
+                        }
+                        catch (e) {
+                            srcAddressStr = inMsg.source || '';
+                        }
+                        const tonVaultParsed = core_1.Address.parse(TON_VAULT_ADDR).toString();
+                        const usdtVaultParsed = core_1.Address.parse(USDT_VAULT_ADDR).toString();
+                        if (srcAddressStr === tonVaultParsed) {
+                            tradeType = 'TON->USDT';
+                            tonAmount = amount0;
+                            tonToUsdtCount++;
+                            decodedViaOpcode = true;
+                            // Extract payout USDT units from 0xad4eb6f5 out_msg to USDT_VAULT
+                            for (const out of outMsgs) {
+                                if (out.msg_data && out.msg_data.body) {
+                                    try {
+                                        let destStr = '';
+                                        try {
+                                            destStr = core_1.Address.parse(out.destination).toString();
+                                        }
+                                        catch (e) {
+                                            destStr = out.destination || '';
+                                        }
+                                        if (destStr === usdtVaultParsed) {
+                                            const outCell = core_1.Cell.fromBase64(out.msg_data.body);
+                                            const os = outCell.beginParse();
+                                            if (os.remainingBits >= 32 && os.loadUint(32) === 0xad4eb6f5) {
+                                                os.loadUintBig(64); // queryId
+                                                usdtUnits = os.loadCoins();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    catch (e) { }
+                                }
+                            }
+                        }
+                        else if (srcAddressStr === usdtVaultParsed) {
+                            tradeType = 'USDT->TON';
+                            usdtUnits = amount0;
+                            usdtToTonCount++;
+                            decodedViaOpcode = true;
+                            // Extract payout TON nanos from 0xad4eb6f5 out_msg to TON_VAULT
+                            for (const out of outMsgs) {
+                                if (out.msg_data && out.msg_data.body) {
+                                    try {
+                                        let destStr = '';
+                                        try {
+                                            destStr = core_1.Address.parse(out.destination).toString();
+                                        }
+                                        catch (e) {
+                                            destStr = out.destination || '';
+                                        }
+                                        if (destStr === tonVaultParsed) {
+                                            const outCell = core_1.Cell.fromBase64(out.msg_data.body);
+                                            const os = outCell.beginParse();
+                                            if (os.remainingBits >= 32 && os.loadUint(32) === 0xad4eb6f5) {
+                                                os.loadUintBig(64); // queryId
+                                                tonAmount = os.loadCoins();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    catch (e) { }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                // Fall back to text/heuristic matching
+            }
         }
-        else if (inMsg.message && inMsg.message.toLowerCase().includes('usdt')) {
-            tradeType = 'USDT->TON';
-            usdtUnits = inValue;
-            tonAmount = outValueSum;
-            usdtToTonCount++;
-        }
-        else if (inValue > 0n && outValueSum > 0n) {
-            // General heuristic: if inValue > 1e6 and outValue > 1e6
-            if (inValue > 1000000000n && outValueSum < 1000000000n) {
+        if (!decodedViaOpcode) {
+            const inValue = BigInt(inMsg.value || '0');
+            let outValueSum = BigInt(0);
+            let usdtAmount = BigInt(0);
+            for (const out of outMsgs) {
+                const val = BigInt(out.value || '0');
+                outValueSum += val;
+                if (out.message && out.message.toLowerCase().includes('usdt')) {
+                    usdtAmount += val;
+                }
+            }
+            if (inMsg.message && inMsg.message.toLowerCase().includes('ton to usdt')) {
                 tradeType = 'TON->USDT';
                 tonAmount = inValue;
-                usdtUnits = outValueSum;
+                usdtUnits = usdtAmount > 0n ? usdtAmount : BigInt(outMsgs[0]?.value || '0');
                 tonToUsdtCount++;
             }
-            else if (inValue < 1000000000n && outValueSum > 1000000000n) {
+            else if (inMsg.message && inMsg.message.toLowerCase().includes('usdt')) {
                 tradeType = 'USDT->TON';
                 usdtUnits = inValue;
                 tonAmount = outValueSum;
                 usdtToTonCount++;
+            }
+            else if (inValue > 0n && outValueSum > 0n) {
+                if (inValue > 1000000000n && outValueSum < 1000000000n) {
+                    tradeType = 'TON->USDT';
+                    tonAmount = inValue;
+                    usdtUnits = outValueSum;
+                    tonToUsdtCount++;
+                }
+                else if (inValue < 1000000000n && outValueSum > 1000000000n) {
+                    tradeType = 'USDT->TON';
+                    usdtUnits = inValue;
+                    tonAmount = outValueSum;
+                    usdtToTonCount++;
+                }
             }
         }
         let impliedPrice = null;
