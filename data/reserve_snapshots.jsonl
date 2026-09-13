@@ -1,2 +1,3 @@
 {"timestamp_utc": "2026-09-13T01:14:41.456105+00:00", "pool_address": "EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r", "ton_reserve": 201699.764849343, "usdt_reserve": 317963.428023, "implied_price_usdt_per_ton": 1.5764194284534672, "trade_fee": "0.1"}
 {"timestamp_utc": "2026-09-13T01:20:18.121210+00:00", "pool_address": "EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r", "ton_reserve": 201809.744179216, "usdt_reserve": 317790.349645, "implied_price_usdt_per_ton": 1.574702702971508, "trade_fee": "0.1"}
+{"timestamp_utc": "2026-09-13T02:18:37.215339+00:00", "pool_address": "EQA-X_yo3fzzbDbJ_0bzFWKqtRuZFIRa1sJsveZJ1YpViO3r", "ton_reserve": 201857.176212689, "usdt_reserve": 317717.102154, "implied_price_usdt_per_ton": 1.5739698142771696, "trade_fee": "0.1"}
